@@ -2,7 +2,7 @@
 
 ```
 INSERT INTO mysql_exercise.user
-VALUE ( 15, 'Đặng Văn Nhớ', 'nho@example.com', 3, 1, now())
+VALUE ( 15, 'Đặng Văn Nhớ', 'nho@example.com', 3, 1, now());
 ```
 
 ### 3. Xoá và sửa1 dòng dữ liệu trong bất kỳ table nào
@@ -63,17 +63,63 @@ SELECT AVG(count_cmt) FROM (SELECT COUNT(comment.id) count_cmt FROM blog
     GROUP BY blog.id) avg_cmt;
 ```
 
+### 10. Lấy Category có tồn tại blog hoặc news đã active (không được lặp lại category)
+
+```
+SELECT DISTINCT * FROM category
+WHERE id IN (SELECT DISTINCT category_id FROM blog WHERE is_active = 1
+union
+SELECT DISTINCT category_id FROM news WHERE is_active = 1);
+```
+
+### 11. Lấy tổng lượt view của từng category thông qua blog và news
+
+```
+SELECT category_id, SUM(sumview) AS total_views
+FROM (
+    SELECT category_id, SUM(`view`) AS sumview FROM blog GROUP BY category_id
+    UNION
+    SELECT category_id, SUM(`view`) AS sumview FROM news GROUP BY category_id
+) AS Sum_view
+GROUP BY category_id;
+```
+
+### 12. Lấy blog được tạo bởi user mà user này không có bất kỳ comment ở blog
+
+```
+SELECT * FROM blog WHERE user_id NOT IN
+	(SELECT distinct user_id FROM `comment` WHERE target_table = 'blog');
+```
+
+### 13. Lấy 5 blog mới nhất và số lượng comment cho từng blog
+
+```
+SELECT b.*, COUNT(c.id) AS comment_count
+FROM blog b
+JOIN comment c ON b.id = c.target_id AND c.target_table = 'blog'
+GROUP BY b.id
+ORDER BY b.created_at DESC LIMIT 5;
+```
+
+### 14. Lấy 3 User comment đầu tiên trong 5 blogs mới nhất
+
+```
+SELECT DISTINCT `user`.* FROM `user` WHERE id IN
+	(SELECT distinct `comment`.user_id FROM `comment`
+	, (SELECT blog.* FROM blog ORDER BY created_at DESC LIMIT 5) as latest_blog
+    where `comment`.user_id = latest_blog.user_id and target_table= 'blog') LIMIT 3;
+```
+
 ### 15. Update rank user = 2 khi tổng số lượng comment của user > 20
 
 ```
-UPDATE mysql_exercise.user AS u
-JOIN (
-    SELECT user_id, COUNT(comment.id) AS comment_count
-    FROM comment
-    GROUP BY user_id
-    HAVING COUNT(comment.id) = 9
-) AS c ON u.id = c.user_id
-SET u.rank = 2;
+UPDATE user
+SET `rank` = 2
+WHERE id in (
+SELECT c.user_id
+FROM  comment c
+GROUP BY c.user_id
+HAVING count(c.comment) > 20) ;
 ```
 
 ### 16. Xoá comment mà nội dung comment có từ "fuck" hoặc "phức"
@@ -104,6 +150,34 @@ AND ( user.id = 1 OR user.id = 2 OR user.id = 4 )
 GROUP BY user.id ;
 ```
 
+### 19. Lấy 5 blog và 5 news của 1 category bất kỳ
+
+```
+SET @rd = (select id from category order by rand() limit 1);
+(SELECT id, category_id, title FROM blog where category_id = @rd  LIMIT 5)
+	UNION
+(SELECT id, category_id, title FROM news where category_id = @rd LIMIT 5);
+
+select id from category order by rand() limit 1;
+```
+
+### 20. Lấy blog và news có lượt view nhiều nhất
+
+```
+select id , category_id from (
+SELECT  * FROM blog
+ORDER BY view Desc
+LIMIT 1
+) as b
+
+UNION
+select id , category_id from(
+SELECT  * FROM news
+ORDER BY view Desc
+LIMIT 1
+) as n;
+```
+
 ### 21. Lấy blog được tạo trong 3 ngày gần nhất
 
 ```
@@ -112,43 +186,93 @@ WHERE created_at >= CURDATE() - INTERVAL 3 DAY
 ORDER BY created_at DESC;
 ```
 
-### Những câu chưa làm
+### 22. Lấy danh sách user đã comment trong 2 blog mới nhất
 
-10.Lấy Category có tồn tại blog hoặc news đã active (không được lặp lại category)
+```
+SELECT u.*
+FROM mysql_exercise.user u
+JOIN (
+    SELECT *
+    FROM mysql_exercise.blog
+    ORDER BY created_at DESC
+    LIMIT 2
+) d ON u.id = d.user_id ;
+```
 
-11.Lấy tổng lượt view của từng category thông qua blog và news
+### 22. Lấy danh sách user đã comment trong 2 blog mới nhất
 
-12.Lấy blog được tạo bởi user mà user này không có bất kỳ comment ở blog
+```
+SELECT DISTINCT `user`.* FROM `user` WHERE id IN
+	(SELECT distinct `comment`.user_id FROM `comment`
+	, (SELECT blog.* FROM blog ORDER BY created_at DESC LIMIT 2) as latest_blog
+    where `comment`.user_id = latest_blog.user_id and target_table= 'blog');
+```
 
-13.Lấy 5 blog mới nhất và số lượng comment cho từng blog
+### 25. Lấy 5 blog và 5 news mới nhất đã active
 
-14.Lấy 3 User comment đầu tiên trong 5 blogs mới nhất
+```
+SELECT category_id , title , content , is_active FROM
+(SELECT * FROM mysql_exercise.blog
+WHERE is_active = 1
+ORDER BY created_at DESC
+LIMIt 5 ) AS B
 
-19.Lấy 5 blog và 5 news của 1 category bất kỳ
+UNION
 
-20.Lấy blog và news có lượt view nhiều nhất
+SELECT category_id , title , content , is_active FROM
+(SELECT * FROM mysql_exercise.news
+WHERE is_active = 1
+ORDER BY created_at DESC
+LIMIt 5 ) AS N;
+```
 
-22.Lấy danh sách user đã comment trong 2 blog mới nhất
+### 27. Blog của user đang được user có id = 1 follow
 
-23.Lấy 2 blog, 2 news mà user có id = 1 đã comment
+```
+SELECT distinct b.*
+FROM mysql_exercise.blog b , mysql_exercise.follow f
+WHERE  b.user_id = f.from_user_id AND f.from_user_id = 1;
+```
 
-24.Lấy 1 blog và 1 news có số lượng comment nhiều nhất
+### 28. Lấy số lượng user đang follow user = 1
 
-25.Lấy 5 blog và 5 news mới nhất đã active
+```
+SELECT  count(from_user_id) AS 'SOLUONG'
+FROM mysql_exercise.follow
+WHERE to_user_id = 1;
+```
 
-26.Lấy nội dung comment trong blog và news của user id =1
+### 29. Lấy số lượng user 1 đang follow
 
-27.Blog của user đang được user có id = 1 follow
+```
+SELECT  count(to_user_id) AS 'SOLUONG'
+FROM mysql_exercise.follow
+WHERE from_user_id = 1 ;
+```
 
-28.Lấy số lượng user đang follow user = 1
+### 31. SELECT CONCAT('PHP Team ', NOW()) AS result
 
-29.Lấy số lượng user 1 đang follow
+```
+SELECT CONCAT('PHP Team ', NOW()) AS INFO ;
+```
 
-31.Hiển thị một chuổi "PHP Team " + ngày giờ hiện tại (Ex: PHP Team 2017-06-21 13:06:37)
+### 32. Tìm có tên(user.full_name) "Khiêu" và các thông tin trên blog của user này như: (blog.title, blog.view), title category(category) của blog này. Hiển thị theo output như bên dưới:
 
-32.Tìm có tên(user.full_name) "Khiêu" và các thông tin trên blog của user này như: (blog.title, blog.view), title category(category) của blog này. Hiển thị theo output như bên dưới:
+```
+SELECT u.fullname, b.title, b.view, c.title AS 'category_title'
+FROM user u
+JOIN blog b ON u.id = b.user_id
+JOIN category c ON b.category_id = c.id
+WHERE u.fullname LIKE '%Khiêu%';
+```
 
-33.Liệt kê email user các user có tên(user.full_name) có chứa ký tự "Khi" theo danh sách như output bên dưới.
+### 33. Liệt kê email user các user có tên(user.full_name) có chứa ký tự "Khi" theo danh sách như output bên dưới.
 
-34.Tính điểm cho user có email là minh82@example.com trong bảng comment. Cách tính điểm:
-Trong bảng comment với taget_table = "blog" tính 1 điểm, taget_table = "news" tính 2 điểm.
+```
+SELECT email FROM user
+WHERE fullname LIKE '%Khi%'
+```
+
+### Những câu chưa làm:
+
+23 , 24 , 26 , 34
